@@ -1,0 +1,41 @@
+{
+  "name": "whatsapp-scraper-app",
+  "version": "1.0.0",
+  "description": "A desktop application to scrape contacts from WhatsApp Web.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jules",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^39.2.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.jules.whatsappscraper",
+    "productName": "WhatsApp Scraper",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "scraper.js",
+      "scraper_active.js",
+      "index.html",
+      "style.css",
+      "assets/"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

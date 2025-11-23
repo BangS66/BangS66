@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Scraper</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Controls</h2>
+            <button id="scan-all">Scan All Chats</button>
+            <button id="scan-selected">Scan Selected Chats</button>
+            <hr>
+            <h2>Export</h2>
+            <button id="export-csv">Export to CSV</button>
+            <button id="export-txt">Export to TXT</button>
+            <hr>
+            <button id="clear-data">Clear Data</button>
+        </div>
+        <div class="main-content">
+            <h1>Scraped Contacts</h1>
+            <p>Found <span id="contact-count">0</span> unique contacts.</p>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Phone Number</th>
+                            <th>Chat Name</th>
+                            <th>Saved Contact</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contacts-table-body">
+                        <!-- Data will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+</body>
+</html>
