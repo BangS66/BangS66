@@ -25,6 +25,7 @@
       "main.js",
       "preload.js",
       "scanner.js",
+      "puppeteer-integration.js",
       "renderer/**/*"
     ],
     "extraResources": [
