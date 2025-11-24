@@ -22,7 +22,10 @@
     "appId": "com.example.whatsappscraper",
     "productName": "WhatsApp Scraper",
     "files": [
-      "*.js",
+      "main.js",
+      "preload.js",
+      "scanner.js",
+      "browser.js",
       "renderer/**/*"
     ],
     "extraResources": [

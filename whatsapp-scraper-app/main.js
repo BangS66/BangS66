@@ -5,9 +5,21 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const puppeteerIntegration = require('./puppeteer-integration');
 
 let mainWindow;
+let browserHandler;
+
+try {
+    browserHandler = require('./browser.js');
+} catch (error) {
+    dialog.showErrorBox(
+        'Critical Error',
+        'A critical file is missing: browser.js. The application cannot start.\n\n' +
+        'Please try reinstalling the application.\n\n' +
+        `Error details: ${error.message}`
+    );
+    app.quit();
+}
 
 function createMainWindow() {
     mainWindow = new BrowserWindow({
@@ -31,11 +43,11 @@ function createMainWindow() {
 app.on('ready', () => {
     createMainWindow();
     // Secara default, mulai tanpa sesi. Pengguna dapat memilih untuk menggunakan sesi.
-    puppeteerIntegration.launchWhatsApp({ session: false });
+    browserHandler.launchWhatsApp({ session: false });
 });
 
 app.on('window-all-closed', () => {
-    puppeteerIntegration.closeBrowser().then(() => {
+    browserHandler.closeBrowser().then(() => {
         if (process.platform !== 'darwin') {
             app.quit();
         }
@@ -52,20 +64,20 @@ app.on('activate', () => {
 
 ipcMain.on('use-session', (event, use) => {
     mainWindow.webContents.send('log-message', `WhatsApp akan dimulai ulang untuk ${use ? 'menggunakan' : 'menghapus'} sesi.`);
-    puppeteerIntegration.launchWhatsApp({ session: use });
+    browserHandler.launchWhatsApp({ session: use });
 });
 
 ipcMain.on('clear-session', (event) => {
-    puppeteerIntegration.clearSessionData().then(() => {
+    browserHandler.clearSessionData().then(() => {
         mainWindow.webContents.send('log-message', 'Sesi dihapus. WhatsApp akan dimulai ulang.');
-        puppeteerIntegration.launchWhatsApp({ session: false });
+        browserHandler.launchWhatsApp({ session: false });
     }).catch(err => {
         mainWindow.webContents.send('log-message', `Gagal menghapus sesi: ${err.message}`);
     });
 });
 
 ipcMain.on('start-scan', async (event, options) => {
-    const page = await puppeteerIntegration.getPage();
+    const page = await browserHandler.getPage();
     if (!page) {
         return mainWindow.webContents.send('scan-error', 'Browser WhatsApp tidak siap.');
     }
