@@ -1,115 +1,188 @@
+// File: main.js
+// Deskripsi: Titik masuk utama untuk aplikasi Electron.
+// Mengelola jendela utama, BrowserView untuk WhatsApp Web, dan komunikasi IPC.
+
 const { app, BrowserWindow, BrowserView, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
-let view;
+let whatsAppView;
+const SESSIONS_DIR = path.join(app.getPath('userData'), 'sessions');
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
+function createMainWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1400,
+        height: 900,
+        icon: path.join(__dirname, 'build', 'icon.png'),
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+        },
+    });
 
-  mainWindow.loadFile('index.html');
-  // mainWindow.webContents.openDevTools();
+    // Muat UI aplikasi
+    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  const customSession = session.fromPartition('whatsapp', { cache: false });
+    // Buka DevTools untuk debugging (opsional)
+    // mainWindow.webContents.openDevTools();
 
-  view = new BrowserView({
-      webPreferences: {
-          session: customSession,
-      }
-  });
+    mainWindow.on('ready-to-show', () => {
+        setupWhatsAppView();
+    });
 
-  mainWindow.setBrowserView(view);
-  view.setBounds({ x: 250, y: 0, width: 950, height: 800 });
-  view.setAutoResize({ width: true, height: true });
-  view.webContents.loadURL('https://web.whatsapp.com', {
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-  });
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 }
 
-app.whenReady().then(() => {
-  createWindow();
+function setupWhatsAppView(partition = null) {
+    if (whatsAppView) {
+        mainWindow.removeBrowserView(whatsAppView);
+        whatsAppView.webContents.destroy();
+        whatsAppView = null;
+    }
 
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
+    const viewSession = partition ? session.fromPartition(partition) : session.defaultSession;
 
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit();
-});
+    whatsAppView = new BrowserView({
+        webPreferences: {
+            preload: path.join(__dirname, 'preload_whatsapp.js'),
+            session: viewSession,
+            // Keamanan tambahan
+            nodeIntegration: false,
+            contextIsolation: true,
+            javascript: true,
+            plugins: false,
+            webSecurity: true,
+        }
+    });
 
-ipcMain.on('start-scan', async (event, args) => {
-    try {
-        const scraperScript = fs.readFileSync(path.join(__dirname, 'scraper.js'), 'utf8');
-        // The scrapeContacts function is defined inside scraper.js
-// We execute the script in the BrowserView's context
-        const results = await view.webContents.executeJavaScript(`
-            (${scraperScript});
-            scrapeContacts();
-        `);
-        // Backup the results
-        const backupPath = path.join(app.getPath('userData'), `whatsapp-contacts-backup-${Date.now()}.json`);
-        fs.writeFileSync(backupPath, JSON.stringify(results, null, 2));
-        console.log(`Backup saved to ${backupPath}`);
+    mainWindow.setBrowserView(whatsAppView);
 
-        event.reply('scan-complete', results);
-    } catch (err) {
-        console.error('Scraping failed:', err);
-        event.reply('scan-error', err.message);
+    const contentBounds = mainWindow.getContentBounds();
+    whatsAppView.setBounds({ x: 400, y: 0, width: contentBounds.width - 400, height: contentBounds.height });
+    whatsAppView.setAutoResize({ width: true, height: true, horizontal: true, vertical: true });
+
+    whatsAppView.webContents.loadURL('https://web.whatsapp.com', {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    });
+
+    // Buka DevTools untuk debugging WhatsApp View (opsional)
+    // whatsAppView.webContents.openDevTools({ mode: 'detach' });
+}
+
+app.on('ready', createMainWindow);
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
     }
 });
 
-ipcMain.on('export-csv', async (event, contacts) => {
-    const { filePath } = await dialog.showSaveDialog({
-        title: 'Save Contacts as CSV',
-        defaultPath: `whatsapp-contacts-${Date.now()}.csv`,
-        filters: [{ name: 'CSV Files', extensions: ['csv'] }]
+app.on('activate', () => {
+    if (mainWindow === null) {
+        createMainWindow();
+    }
+});
+
+// Handler IPC
+ipcMain.on('use-session', (event, use) => {
+    const partition = use ? `persist:whatsapp_session` : null;
+    setupWhatsAppView(partition);
+});
+
+ipcMain.on('clear-session', (event) => {
+    const persistentSession = session.fromPartition('persist:whatsapp_session');
+    persistentSession.clearStorageData().then(() => {
+        setupWhatsAppView(null); // Kembali ke sesi default
+        event.reply('session-cleared', 'Sesi berhasil dihapus. Silakan scan QR code lagi.');
+    }).catch(err => {
+        console.error('Gagal menghapus sesi:', err);
+        event.reply('log-message', `Error: Gagal menghapus sesi - ${err.message}`);
+    });
+});
+
+ipcMain.on('scan-progress', (event, progressData) => {
+    if (mainWindow) {
+        mainWindow.webContents.send('scan-progress', progressData);
+    }
+});
+
+ipcMain.on('export-csv', (event, data) => {
+    handleExport(data, 'csv');
+});
+
+ipcMain.on('export-json', (event, data) => {
+    handleExport(data, 'json');
+});
+
+ipcMain.on('export-txt', (event, data) => {
+    handleExport(data, 'txt');
+});
+
+async function handleExport(data, format) {
+    if (!data || data.length === 0) {
+        mainWindow.webContents.send('log-message', 'Tidak ada data untuk diekspor.');
+        return;
+    }
+
+    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: `Ekspor Sebagai ${format.toUpperCase()}`,
+        defaultPath: path.join(app.getPath('downloads'), `whatsapp_contacts_${Date.now()}.${format}`),
+        filters: [{ name: `${format.toUpperCase()} Files`, extensions: [format] }]
     });
 
     if (filePath) {
-        let csvContent = 'Phone,Chat Name,Saved Contact\n';
-        contacts.forEach(contact => {
-            csvContent += `${contact.phone},"${contact.chatName.replace(/"/g, '""')}",${contact.isSaved ? 'Yes' : 'No'}\n`;
-        });
-        fs.writeFileSync(filePath, csvContent);
+        let content;
+        switch (format) {
+            case 'csv':
+                const header = 'Name,Phone,ChatType,LastMessage,Timestamp\n';
+                const rows = data.map(d => `"${d.name}","${d.phone}","${d.chatType}","${d.lastMessage.replace(/"/g, '""')}","${d.timestamp}"`);
+                content = header + rows.join('\n');
+                break;
+            case 'json':
+                content = JSON.stringify(data, null, 2);
+                break;
+            case 'txt':
+                content = data.map(d => d.phone).join('\n');
+                break;
+        }
+
+        try {
+            fs.writeFileSync(filePath, content);
+            // Simpan juga salinan ke folder exports
+            const exportsDir = path.join(__dirname, 'exports');
+            if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir);
+            fs.writeFileSync(path.join(exportsDir, path.basename(filePath)), content);
+
+            mainWindow.webContents.send('log-message', `Data berhasil diekspor ke ${filePath}`);
+        } catch (err) {
+            console.error('Gagal menyimpan file ekspor:', err);
+            mainWindow.webContents.send('log-message', `Error: Gagal menyimpan file - ${err.message}`);
+        }
     }
-});
+}
 
-ipcMain.on('export-txt', async (event, contacts) => {
-    const { filePath } = await dialog.showSaveDialog({
-        title: 'Save Contacts as TXT',
-        defaultPath: `whatsapp-contacts-${Date.now()}.txt`,
-        filters: [{ name: 'Text Files', extensions: ['txt'] }]
-    });
-
-    if (filePath) {
-        let txtContent = '';
-        contacts.forEach(contact => {
-            txtContent += `${contact.phone}\n`;
-        });
-        fs.writeFileSync(filePath, txtContent);
+ipcMain.on('start-scan', async (event, options) => {
+    if (!whatsAppView) {
+        return event.reply('scan-error', 'WhatsApp view tidak siap.');
     }
-});
 
-ipcMain.on('scan-selected', async (event, args) => {
     try {
-        const scraperScript = fs.readFileSync(path.join(__dirname, 'scraper_active.js'), 'utf8');
-        const results = await view.webContents.executeJavaScript(`
-            (${scraperScript});
-            scrapeActiveChat();
+        const scannerScript = fs.readFileSync(path.join(__dirname, 'scanner.js'), 'utf8');
+
+        // Jalankan fungsi scan utama
+        const results = await whatsAppView.webContents.executeJavaScript(`
+            (${scannerScript});
+            scanAllChats(${JSON.stringify(options)});
         `);
+
         event.reply('scan-complete', results);
+
     } catch (err) {
-        console.error('Scraping failed:', err);
-        event.reply('scan-error', err.message);
+        console.error('Gagal menjalankan skrip pemindaian:', err);
+        event.reply('scan-error', `Gagal menjalankan skrip: ${err.message}`);
     }
 });

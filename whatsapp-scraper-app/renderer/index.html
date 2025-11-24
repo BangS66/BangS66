@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Scraper</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <header>
+                <h1>WA Scraper</h1>
+            </header>
+
+            <section class="session-controls">
+                <h2>Session</h2>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="remember-session">
+                    <label for="remember-session">Remember Session</label>
+                </div>
+                <button id="clear-session">Clear Session</button>
+            </section>
+
+            <section class="scan-controls">
+                <h2>Scan</h2>
+                <button id="scan-all">Scan All Chats</button>
+                <button id="scan-selected" disabled>Scan Selected (soon)</button>
+                <button id="scan-unsaved" disabled>Scan Unsaved Only (soon)</button>
+            </section>
+
+            <section class="export-controls">
+                <h2>Export</h2>
+                <button id="export-csv">Export CSV</button>
+                <button id="export-json">Export JSON</button>
+                <button id="export-txt">Export TXT</button>
+                <button id="clear-data">Clear Data</button>
+            </section>
+
+            <section class="log-area">
+                <h2>Log</h2>
+                <div id="log-box" class="log-box"></div>
+                <div id="progress-bar-container">
+                    <div id="progress-bar"></div>
+                </div>
+            </section>
+
+            <section class="main-content">
+                <p>Contacts Found: <span id="contact-count">0</span></p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>Type</th>
+                                <th>Last Message</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table-body">
+                            <!-- Data will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>
