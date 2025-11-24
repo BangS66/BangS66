@@ -1,6 +1,7 @@
 const { app, BrowserWindow, BrowserView, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { initializeLogger } = require('./utils/logger');
 
 // Direktori untuk menyimpan sesi, agar tidak perlu login ulang
 const userDataPath = path.join(app.getPath('userData'), 'session');
@@ -48,7 +49,10 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  initializeLogger();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

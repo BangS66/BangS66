@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const startScanBtn = document.getElementById('start-scan-btn');
     const stopScanBtn = document.getElementById('stop-scan-btn');
     const statusMessage = document.getElementById('status-message');
-    const scanProgress = document.getElementById('scan-progress');
+    const scanProgress = document.getElementById('scan-progress'); // Tetap ada untuk visual
     const progressCounter = document.getElementById('progress-counter');
     const resultsTableBody = document.querySelector('#results-table tbody');
 
@@ -13,10 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let foundContacts = [];
     let uniqueNumbers = new Set();
+    let processedChatsCount = 0;
 
     function setScanningState(isScanning) {
         startScanBtn.disabled = isScanning;
         stopScanBtn.disabled = !isScanning;
+        scanProgress.style.display = isScanning ? 'block' : 'none'; // Sembunyikan/tampilkan progress
     }
 
     startScanBtn.addEventListener('click', () => {
@@ -24,16 +26,15 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsTableBody.innerHTML = '';
         foundContacts = [];
         uniqueNumbers.clear();
+        processedChatsCount = 0;
         statusMessage.textContent = 'Memulai pemindaian...';
-        scanProgress.value = 0;
-        progressCounter.textContent = 'Ditemukan: 0 | Diproses: 0 / ?';
+        statusMessage.style.color = ''; // Reset warna
+        progressCounter.textContent = 'Ditemukan: 0 | Diproses: 0';
         setScanningState(true);
 
         const options = {
             delay_per_chat_ms: parseInt(document.getElementById('delay_per_chat_ms').value, 10),
-            delay_between_messages_ms: parseInt(document.getElementById('delay_between_messages_ms').value, 10),
             max_chats_to_scan: parseInt(document.getElementById('max_chats_to_scan').value, 10),
-            scan_direction: document.getElementById('scan_direction').value
         };
         window.electronAPI.startScan(options);
     });
@@ -46,11 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.onScanUpdate((update) => {
         statusMessage.textContent = update.message;
-        if (update.totalChats) {
-            progressCounter.textContent = `Ditemukan: ${uniqueNumbers.size} | Diproses: ${update.processedChats} / ${update.totalChats}`;
-            scanProgress.max = update.totalChats;
-            scanProgress.value = update.processedChats;
+        if (update.processedChats) {
+            processedChatsCount = update.processedChats;
         }
+         progressCounter.textContent = `Ditemukan: ${uniqueNumbers.size} | Diproses: ${processedChatsCount}`;
     });
 
     window.electronAPI.onScanResult((contact) => {
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             uniqueNumbers.add(contact.normalized_number);
             foundContacts.push(contact);
 
-            const row = resultsTableBody.insertRow(0); // Insert at the top
+            const row = resultsTableBody.insertRow(0); // Sisipkan di atas
             row.innerHTML = `
                 <td>${contact.original_text || ''}</td>
                 <td>${contact.normalized_number || ''}</td>
@@ -68,15 +68,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${contact.last_activity_timestamp || ''}</td>
             `;
 
-            // Update counter after adding
-             progressCounter.textContent = `Ditemukan: ${uniqueNumbers.size} | Diproses: ${scanProgress.value} / ${scanProgress.max}`;
+            progressCounter.textContent = `Ditemukan: ${uniqueNumbers.size} | Diproses: ${processedChatsCount}`;
         }
     });
 
     window.electronAPI.onScanComplete(() => {
         setScanningState(false);
         statusMessage.textContent = `Pemindaian selesai! Ditemukan ${uniqueNumbers.size} nomor unik.`;
-        scanProgress.value = scanProgress.max;
     });
 
     window.electronAPI.onScanError((error) => {

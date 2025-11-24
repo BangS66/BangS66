@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { ipcMain, dialog } = require('electron');
-const logger = require('./logger');
+const { logger } = require('./logger');
 
 /**
  * Mengubah array objek kontak menjadi string CSV.
