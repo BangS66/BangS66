@@ -1,18 +1,17 @@
 // File: main.js
 // Deskripsi: Titik masuk utama untuk aplikasi Electron.
-// Mengelola jendela utama, BrowserView untuk WhatsApp Web, dan komunikasi IPC.
+// Mengelola jendela utama dan komunikasi IPC dengan Puppeteer.
 
-const { app, BrowserWindow, BrowserView, ipcMain, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const puppeteerIntegration = require('./puppeteer-integration');
 
 let mainWindow;
-let whatsAppView;
-const SESSIONS_DIR = path.join(app.getPath('userData'), 'sessions');
 
 function createMainWindow() {
     mainWindow = new BrowserWindow({
-        width: 1400,
+        width: 400, // Hanya lebar sidebar
         height: 900,
         icon: path.join(__dirname, 'build', 'icon.png'),
         webPreferences: {
@@ -22,72 +21,25 @@ function createMainWindow() {
         },
     });
 
-    // Muat UI aplikasi
     mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-
-    // Buka DevTools untuk debugging (opsional)
-    // mainWindow.webContents.openDevTools();
-
-    mainWindow.on('ready-to-show', () => {
-        setupWhatsAppView();
-    });
 
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
 }
 
-function setupWhatsAppView() {
-    if (whatsAppView) {
-        mainWindow.removeBrowserView(whatsAppView);
-        whatsAppView.webContents.destroy();
-        whatsAppView = null;
-    }
-
-    whatsAppView = new BrowserView({
-        webPreferences: {
-            session: session.defaultSession, // Selalu gunakan sesi default untuk sekarang
-            // Keamanan tambahan
-            nodeIntegration: false,
-            contextIsolation: true,
-            javascript: true,
-            plugins: false,
-            webSecurity: true,
-        }
-    });
-
-    mainWindow.setBrowserView(whatsAppView);
-
-    const contentBounds = mainWindow.getContentBounds();
-    whatsAppView.setBounds({ x: 400, y: 0, width: contentBounds.width - 400, height: contentBounds.height });
-    whatsAppView.setAutoResize({ width: true, height: true, horizontal: true, vertical: true });
-
-    whatsAppView.webContents.loadURL('https://web.whatsapp.com', {
-        userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
-    });
-
-    // Pantau pembaruan judul untuk laporan progres
-    whatsAppView.webContents.on('page-title-updated', (event, title) => {
-        if (title.startsWith('WA_SCAN_PROGRESS::')) {
-            try {
-                const data = JSON.parse(title.substring('WA_SCAN_PROGRESS::'.length));
-                mainWindow.webContents.send('scan-progress', data);
-            } catch (e) {
-                console.error('Failed to parse progress update from title:', e);
-            }
-        }
-    });
-
-    // Buka DevTools untuk debugging WhatsApp View (opsional)
-    // whatsAppView.webContents.openDevTools({ mode: 'detach' });
-}
-
-app.on('ready', createMainWindow);
+app.on('ready', () => {
+    createMainWindow();
+    // Secara default, mulai tanpa sesi. Pengguna dapat memilih untuk menggunakan sesi.
+    puppeteerIntegration.launchWhatsApp({ session: false });
+});
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    puppeteerIntegration.closeBrowser().then(() => {
+        if (process.platform !== 'darwin') {
+            app.quit();
+        }
+    });
 });
 
 app.on('activate', () => {
@@ -96,39 +48,49 @@ app.on('activate', () => {
     }
 });
 
-// Handler IPC (logika sesi dinonaktifkan sementara)
-// ipcMain.on('use-session', (event, use) => {
-//     const partition = use ? `persist:whatsapp_session` : null;
-//     setupWhatsAppView(partition);
-// });
+// --- Handler IPC ---
 
-// ipcMain.on('clear-session', (event) => {
-//     const persistentSession = session.fromPartition('persist:whatsapp_session');
-//     persistentSession.clearStorageData().then(() => {
-//         setupWhatsAppView(null); // Kembali ke sesi default
-//         event.reply('session-cleared', 'Sesi berhasil dihapus. Silakan scan QR code lagi.');
-//     }).catch(err => {
-//         console.error('Gagal menghapus sesi:', err);
-//         event.reply('log-message', `Error: Gagal menghapus sesi - ${err.message}`);
-//     });
-// });
+ipcMain.on('use-session', (event, use) => {
+    mainWindow.webContents.send('log-message', `WhatsApp akan dimulai ulang untuk ${use ? 'menggunakan' : 'menghapus'} sesi.`);
+    puppeteerIntegration.launchWhatsApp({ session: use });
+});
 
-ipcMain.on('scan-progress', (event, progressData) => {
-    if (mainWindow) {
-        mainWindow.webContents.send('scan-progress', progressData);
+ipcMain.on('clear-session', (event) => {
+    puppeteerIntegration.clearSessionData().then(() => {
+        mainWindow.webContents.send('log-message', 'Sesi dihapus. WhatsApp akan dimulai ulang.');
+        puppeteerIntegration.launchWhatsApp({ session: false });
+    }).catch(err => {
+        mainWindow.webContents.send('log-message', `Gagal menghapus sesi: ${err.message}`);
+    });
+});
+
+ipcMain.on('start-scan', async (event, options) => {
+    const page = await puppeteerIntegration.getPage();
+    if (!page) {
+        return mainWindow.webContents.send('scan-error', 'Browser WhatsApp tidak siap.');
     }
-});
 
-ipcMain.on('export-csv', (event, data) => {
-    handleExport(data, 'csv');
-});
+    try {
+        await page.exposeFunction('reportProgressToMain', (progressData) => {
+            mainWindow.webContents.send('scan-progress', progressData);
+        });
 
-ipcMain.on('export-json', (event, data) => {
-    handleExport(data, 'json');
-});
+        const scannerScript = fs.readFileSync(path.join(__dirname, 'scanner.js'), 'utf8');
 
-ipcMain.on('export-txt', (event, data) => {
-    handleExport(data, 'txt');
+        const results = await page.evaluate(`
+            async () => {
+                // Mendefinisikan ulang fungsi di dalam konteks evaluate
+                ${scannerScript}
+                return await scanAllChats(${JSON.stringify(options)});
+            }
+        `);
+
+        mainWindow.webContents.send('scan-complete', results);
+
+    } catch (err) {
+        console.error('Gagal menjalankan skrip pemindaian:', err.message);
+        mainWindow.webContents.send('scan-error', `Gagal menjalankan skrip: ${err.message}`);
+    }
 });
 
 async function handleExport(data, format) {
@@ -161,7 +123,6 @@ async function handleExport(data, format) {
 
         try {
             fs.writeFileSync(filePath, content);
-            // Simpan juga salinan ke folder exports
             const exportsDir = path.join(__dirname, 'exports');
             if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir);
             fs.writeFileSync(path.join(exportsDir, path.basename(filePath)), content);
@@ -174,24 +135,6 @@ async function handleExport(data, format) {
     }
 }
 
-ipcMain.on('start-scan', async (event, options) => {
-    if (!whatsAppView) {
-        return event.reply('scan-error', 'WhatsApp view tidak siap.');
-    }
-
-    try {
-        const scannerScript = fs.readFileSync(path.join(__dirname, 'scanner.js'), 'utf8');
-
-        // Jalankan fungsi scan utama
-        const results = await whatsAppView.webContents.executeJavaScript(`
-            (${scannerScript});
-            scanAllChats(${JSON.stringify(options)});
-        `);
-
-        event.reply('scan-complete', results);
-
-    } catch (err) {
-        console.error('Gagal menjalankan skrip pemindaian:', err);
-        event.reply('scan-error', `Gagal menjalankan skrip: ${err.message}`);
-    }
-});
+ipcMain.on('export-csv', (event, data) => handleExport(data, 'csv'));
+ipcMain.on('export-json', (event, data) => handleExport(data, 'json'));
+ipcMain.on('export-txt', (event, data) => handleExport(data, 'txt'));

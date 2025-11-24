@@ -57,9 +57,8 @@ async function scanAllChats(options) {
         return matches.map(cleanPhone).filter(Boolean);
     }
 
-    function reportProgress(progress, message) {
-        document.title = `WA_SCAN_PROGRESS::${JSON.stringify({ progress, message })}`;
-    }
+    // Fungsi ini akan diekspos oleh Puppeteer sebagai 'reportProgressToMain'
+    const reportProgress = window.reportProgressToMain;
 
     // --- Logika Scraping Utama ---
     async function scrollChatList() {

@@ -1,59 +1,62 @@
 # WhatsApp Scraper Desktop
 
-Aplikasi desktop berbasis ElectronJS untuk mengekstrak (scrape) kontak dan metadata dari chat WhatsApp Web secara lokal.
+Aplikasi desktop berbasis ElectronJS untuk mengekstrak (scrape) kontak dan metadata dari chat WhatsApp Web secara lokal, menggunakan Puppeteer untuk stabilitas.
 
 ## Penafian (Disclaimer)
 
-**Penggunaan aplikasi ini dapat melanggar Ketentuan Layanan WhatsApp.** Otomatisasi interaksi dengan platform mereka membawa risiko, termasuk kemungkinan akun Anda diblokir sementara atau permanen. Gunakan dengan bijak dan atas risiko Anda sendiri. Pengembang tidak bertanggung jawab atas segala konsekuensi dari penggunaan aplikasi ini. Untuk meminimalkan risiko, hindari penggunaan berlebihan atau untuk tujuan spam.
+**Penggunaan aplikasi ini dapat melanggar Ketentuan Layanan WhatsApp.** Otomatisasi interaksi dengan platform mereka membawa risiko, termasuk kemungkinan akun Anda diblokir sementara atau permanen. Gunakan dengan bijak dan atas risiko Anda sendiri. Pengembang tidak bertanggung jawab atas segala konsekuensi dari penggunaan aplikasi ini.
 
 ## Cara Kerja
 
-Aplikasi ini membungkus WhatsApp Web dalam jendela desktop yang aman menggunakan Electron's `BrowserView`. Saat Anda memulai pemindaian, aplikasi akan menginjeksikan skrip (`scanner.js`) ke dalam `BrowserView` tersebut. Skrip ini secara lokal menyimulasikan perilaku pengguna—seperti menggulir daftar obrolan dan mengklik setiap obrolan—untuk mengumpulkan informasi yang terlihat di layar. Semua data diproses dan disimpan di komputer Anda dan **tidak pernah dikirim ke server eksternal mana pun.**
+Aplikasi ini menggunakan arsitektur dua jendela untuk stabilitas maksimum:
+1.  **Jendela Kontrol (Electron)**: Antarmuka pengguna utama tempat Anda mengontrol pemindaian dan melihat hasilnya.
+2.  **Jendela Browser (Puppeteer)**: Jendela browser Chromium terpisah yang dikontrol oleh Puppeteer. WhatsApp Web berjalan di lingkungan browser yang lebih otentik ini, yang secara signifikan mengurangi kemungkinan deteksi dan pemblokiran.
 
-## Fitur Utama
+Saat Anda memulai pemindaian, aplikasi akan menginjeksikan skrip (`scanner.js`) ke dalam halaman WhatsApp Web untuk mengumpulkan data secara lokal.
 
-- **Scraping Lokal**: Semua proses berjalan 100% di perangkat Anda.
-- **Manajemen Sesi**: Opsi untuk menyimpan sesi login Anda agar tidak perlu memindai kode QR setiap kali.
-- **Ekstrak Metadata Komprehensif**: Mengambil nama, nomor telepon, jenis obrolan (pribadi/grup), pesan terakhir, dan stempel waktu.
-- **Ekspor Fleksibel**: Ekspor data yang dikumpulkan ke format CSV, JSON, atau TXT.
-- **Penyimpanan Otomatis**: Hasil ekspor secara otomatis disimpan ke folder `exports` di dalam direktori aplikasi.
+## Persiapan WAJIB: Mengatur Chromium
+
+Aplikasi ini membutuhkan browser Chromium agar berfungsi. Anda **HARUS** menyediakan browser ini.
+
+1.  **Unduh Chromium**:
+    -   Kunjungi [situs unduhan Chromium](https://commondatastorage.googleapis.com/chromium-browser-snapshots/index.html?prefix=Win_x64/).
+    -   Pilih versi stabil terbaru (cari nomor revisi tertinggi).
+    -   Unduh file `chrome-win.zip`.
+
+2.  **Ekstrak dan Tempatkan**:
+    -   Buat folder bernama `chromium` di dalam direktori utama proyek (`whatsapp-scraper-app/chromium`).
+    -   Ekstrak **seluruh isi** dari `chrome-win.zip` ke dalam folder `chromium` tersebut.
+    -   Struktur akhir Anda harus terlihat seperti ini: `whatsapp-scraper-app/chromium/chrome-win/chrome.exe`. (Aplikasi akan secara otomatis mencari path ini).
 
 ## Instalasi dan Penggunaan
 
 ### Prasyarat
 
-- [Node.js](https://nodejs.org/) (versi LTS direkomendasikan)
-- npm (biasanya sudah termasuk dalam Node.js)
+-   Node.js (versi LTS direkomendasikan)
+-   Browser Chromium (lihat langkah-langkah di atas)
 
 ### Menjalankan Aplikasi (Mode Pengembangan)
 
-1.  **Clone repositori ini:**
+1.  **Clone repositori dan instal dependensi:**
     ```bash
     git clone <URL_REPO_ANDA>
     cd whatsapp-scraper-app
-    ```
-
-2.  **Instal dependensi:**
-    ```bash
     npm install
     ```
+
+2.  **Pastikan Chromium sudah ada** di folder `chromium/`.
 
 3.  **Jalankan aplikasi:**
     ```bash
     npm start
     ```
-    Aplikasi akan terbuka, dan Anda dapat login ke WhatsApp Web dengan memindai kode QR.
+    Jendela kontrol akan terbuka, diikuti oleh jendela browser Chromium terpisah yang memuat WhatsApp Web.
 
 ## Membangun Aplikasi Lintas Platform
 
-Anda dapat membangun aplikasi ini untuk Windows, macOS, dan Linux. Perintah-perintah berikut akan membuat installer/paket yang sesuai di dalam direktori `dist`.
+Anda dapat membangun aplikasi ini untuk Windows, macOS, dan Linux.
 
-1.  **Pastikan semua dependensi terinstal:**
-    ```bash
-    npm install
-    ```
-
-2.  **Jalankan skrip build yang sesuai:**
+1.  **Jalankan skrip build yang sesuai:**
     -   **Untuk Windows (.exe):**
         ```bash
         npm run dist -- --win
@@ -67,14 +70,10 @@ Anda dapat membangun aplikasi ini untuk Windows, macOS, dan Linux. Perintah-peri
         npm run dist -- --linux
         ```
 
-3.  **Temukan installer Anda:**
-    Setelah proses selesai, cari file yang dapat didistribusikan (misalnya, `.exe`, `.dmg`, atau `.AppImage`) di dalam direktori `dist` yang baru dibuat.
+2.  **PENTING**: Setelah membangun, Anda harus **menyalin folder `chromium` secara manual** ke dalam direktori *resources* dari aplikasi yang sudah di-build (misalnya, di dalam `dist/win-unpacked/resources/`). `electron-builder` tidak selalu menangani bundel biner besar seperti ini dengan baik.
 
-## Pemecahan Masalah (Troubleshooting)
+## Pemecahan Masalah
 
--   **Pemindaian Gagal atau Macet**:
-    -   Pastikan koneksi internet Anda stabil.
-    -   Struktur DOM WhatsApp Web mungkin telah berubah. Coba buka DevTools (`Ctrl+Shift+I` lalu klik kanan pada area WhatsApp Web dan pilih "Inspect Element") untuk memeriksa apakah selector di `scanner.js` masih valid.
-    -   Coba hapus sesi (`Clear Session`) dan login kembali.
--   **Aplikasi Menampilkan Layar Putih**:
-    -   Ini bisa jadi masalah saat memuat UI atau WhatsApp Web. Buka DevTools (`Ctrl+Shift+I`) dan periksa tab `Console` untuk melihat pesan kesalahan.
+-   **Browser Chromium Tidak Terbuka**:
+    -   Pastikan Anda telah menempatkan folder `chrome-win` dengan benar di dalam direktori `chromium`.
+    -   Verifikasi bahwa `puppeteer-integration.js` dapat menemukan `chrome.exe`. Anda mungkin perlu menyesuaikan path di `getChromiumExecutablePath()` jika Anda menggunakan OS selain Windows.

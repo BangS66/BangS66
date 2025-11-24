@@ -117,5 +117,5 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    logMessage('Aplikasi siap. Silakan login ke WhatsApp Web di panel kanan.');
+    logMessage('Aplikasi siap. WhatsApp Web akan terbuka di jendela terpisah.');
 });
