@@ -37,19 +37,16 @@ function createMainWindow() {
     });
 }
 
-function setupWhatsAppView(partition = null) {
+function setupWhatsAppView() {
     if (whatsAppView) {
         mainWindow.removeBrowserView(whatsAppView);
         whatsAppView.webContents.destroy();
         whatsAppView = null;
     }
 
-    const viewSession = partition ? session.fromPartition(partition) : session.defaultSession;
-
     whatsAppView = new BrowserView({
         webPreferences: {
-            // preload: path.join(__dirname, 'preload_whatsapp.js'), // Dihapus sementara untuk pengujian
-            session: viewSession,
+            session: session.defaultSession, // Selalu gunakan sesi default untuk sekarang
             // Keamanan tambahan
             nodeIntegration: false,
             contextIsolation: true,
@@ -66,17 +63,7 @@ function setupWhatsAppView(partition = null) {
     whatsAppView.setAutoResize({ width: true, height: true, horizontal: true, vertical: true });
 
     whatsAppView.webContents.loadURL('https://web.whatsapp.com', {
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-    });
-
-    // Pantau crash dan kegagalan muat
-    whatsAppView.webContents.on('crashed', (event, killed) => {
-        console.error(`BrowserView CRASHED: ${killed ? 'killed' : 'crashed'}`);
-        mainWindow.webContents.send('log-message', 'ERROR: WhatsApp view crashed. Please restart the application.');
-    });
-
-    whatsAppView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-        console.error(`BrowserView FAILED TO LOAD: ${errorCode} ${errorDescription}`);
+        userAgent: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
     });
 
     // Pantau pembaruan judul untuk laporan progres
@@ -109,22 +96,22 @@ app.on('activate', () => {
     }
 });
 
-// Handler IPC
-ipcMain.on('use-session', (event, use) => {
-    const partition = use ? `persist:whatsapp_session` : null;
-    setupWhatsAppView(partition);
-});
+// Handler IPC (logika sesi dinonaktifkan sementara)
+// ipcMain.on('use-session', (event, use) => {
+//     const partition = use ? `persist:whatsapp_session` : null;
+//     setupWhatsAppView(partition);
+// });
 
-ipcMain.on('clear-session', (event) => {
-    const persistentSession = session.fromPartition('persist:whatsapp_session');
-    persistentSession.clearStorageData().then(() => {
-        setupWhatsAppView(null); // Kembali ke sesi default
-        event.reply('session-cleared', 'Sesi berhasil dihapus. Silakan scan QR code lagi.');
-    }).catch(err => {
-        console.error('Gagal menghapus sesi:', err);
-        event.reply('log-message', `Error: Gagal menghapus sesi - ${err.message}`);
-    });
-});
+// ipcMain.on('clear-session', (event) => {
+//     const persistentSession = session.fromPartition('persist:whatsapp_session');
+//     persistentSession.clearStorageData().then(() => {
+//         setupWhatsAppView(null); // Kembali ke sesi default
+//         event.reply('session-cleared', 'Sesi berhasil dihapus. Silakan scan QR code lagi.');
+//     }).catch(err => {
+//         console.error('Gagal menghapus sesi:', err);
+//         event.reply('log-message', `Error: Gagal menghapus sesi - ${err.message}`);
+//     });
+// });
 
 ipcMain.on('scan-progress', (event, progressData) => {
     if (mainWindow) {
