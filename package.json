@@ -1,0 +1,40 @@
+{
+  "name": "whatsapp-unsaver-contact-scraper",
+  "version": "1.0.0",
+  "description": "Aplikasi untuk memindai (scrape) nomor telepon yang belum tersimpan dari WhatsApp Web.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron . --remote-debugging-port=9222",
+    "dist": "electron-builder"
+  },
+  "keywords": [
+    "whatsapp",
+    "scraper",
+    "electron"
+  ],
+  "author": "Jules",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^24.8.8",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "libphonenumber-js": "^1.12.29",
+    "playwright-core": "^1.40.1",
+    "winston": "^3.11.0"
+  },
+  "build": {
+    "appId": "com.jules.whatsappscraper",
+    "productName": "WhatsApp Scraper",
+    "target": "NSIS",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    }
+  }
+}
