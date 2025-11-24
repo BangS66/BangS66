@@ -57,9 +57,13 @@ async function scanAllChats(options) {
         return matches.map(cleanPhone).filter(Boolean);
     }
 
+    function reportProgress(progress, message) {
+        document.title = `WA_SCAN_PROGRESS::${JSON.stringify({ progress, message })}`;
+    }
+
     // --- Logika Scraping Utama ---
     async function scrollChatList() {
-        window.electronAPI.send('scan-progress', { progress: 5, message: 'Memulai scroll daftar obrolan...' });
+        reportProgress(5, 'Memulai scroll daftar obrolan...');
         const chatList = document.querySelector(SELECTORS.chatListContainer);
         if (!chatList) throw new Error('Container daftar obrolan tidak ditemukan.');
 
@@ -75,7 +79,7 @@ async function scanAllChats(options) {
             }
             lastHeight = chatList.scrollTop;
         }
-        window.electronAPI.send('scan-progress', { progress: 10, message: 'Selesai menggulir daftar obrolan.' });
+        reportProgress(10, 'Selesai menggulir daftar obrolan.');
     }
 
     async function getPhoneNumberForSavedContact() {
@@ -121,7 +125,7 @@ async function scanAllChats(options) {
                 const nameEl = getElement(SELECTORS.contactNameTitle);
                 const name = nameEl ? nameEl.textContent : 'Unknown';
 
-                window.electronAPI.send('scan-progress', { progress, message: `(${i+1}/${totalChats}) Memproses: ${name}` });
+                reportProgress(progress, `(${i+1}/${totalChats}) Memproses: ${name}`);
 
                 const headerText = document.querySelector('header')?.innerText || '';
                 let phone = extractPhonesFromText(headerText)[0] || null;
@@ -135,7 +139,7 @@ async function scanAllChats(options) {
                 }
 
                 if (!phone) {
-                    window.electronAPI.send('scan-progress', { progress, message: `(${i+1}/${totalChats}) Nomor tidak ditemukan untuk ${name}, melewati.` });
+                    reportProgress(progress, `(${i+1}/${totalChats}) Nomor tidak ditemukan untuk ${name}, melewati.`);
                     continue;
                 }
 
@@ -157,7 +161,7 @@ async function scanAllChats(options) {
                 });
 
             } catch (err) {
-                 window.electronAPI.send('scan-progress', { progress, message: `Gagal memproses obrolan ${i+1}: ${err.message}` });
+                 reportProgress(progress, `Gagal memproses obrolan ${i+1}: ${err.message}`);
             }
         }
     }

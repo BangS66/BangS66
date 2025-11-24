@@ -48,7 +48,7 @@ function setupWhatsAppView(partition = null) {
 
     whatsAppView = new BrowserView({
         webPreferences: {
-            preload: path.join(__dirname, 'preload_whatsapp.js'),
+            // preload: path.join(__dirname, 'preload_whatsapp.js'), // Dihapus sementara untuk pengujian
             session: viewSession,
             // Keamanan tambahan
             nodeIntegration: false,
@@ -67,6 +67,28 @@ function setupWhatsAppView(partition = null) {
 
     whatsAppView.webContents.loadURL('https://web.whatsapp.com', {
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+    });
+
+    // Pantau crash dan kegagalan muat
+    whatsAppView.webContents.on('crashed', (event, killed) => {
+        console.error(`BrowserView CRASHED: ${killed ? 'killed' : 'crashed'}`);
+        mainWindow.webContents.send('log-message', 'ERROR: WhatsApp view crashed. Please restart the application.');
+    });
+
+    whatsAppView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+        console.error(`BrowserView FAILED TO LOAD: ${errorCode} ${errorDescription}`);
+    });
+
+    // Pantau pembaruan judul untuk laporan progres
+    whatsAppView.webContents.on('page-title-updated', (event, title) => {
+        if (title.startsWith('WA_SCAN_PROGRESS::')) {
+            try {
+                const data = JSON.parse(title.substring('WA_SCAN_PROGRESS::'.length));
+                mainWindow.webContents.send('scan-progress', data);
+            } catch (e) {
+                console.error('Failed to parse progress update from title:', e);
+            }
+        }
     });
 
     // Buka DevTools untuk debugging WhatsApp View (opsional)
