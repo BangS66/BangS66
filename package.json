@@ -4,7 +4,7 @@
   "description": "Aplikasi untuk memindai (scrape) nomor telepon yang belum tersimpan dari WhatsApp Web.",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron . --remote-debugging-port=9222",
+    "start": "electron .",
     "dist": "electron-builder"
   },
   "keywords": [
@@ -20,7 +20,6 @@
   },
   "dependencies": {
     "libphonenumber-js": "^1.12.29",
-    "playwright-core": "^1.40.1",
     "winston": "^3.11.0"
   },
   "build": {

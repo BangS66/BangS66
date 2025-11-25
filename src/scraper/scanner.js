@@ -1,123 +1,146 @@
-const { chromium } = require('playwright-core');
-const { ipcMain, BrowserWindow } = require('electron');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const { logger } = require('../utils/logger');
 
-// Variabel state
-let browser = null;
-let page = null;
 let isScanRunning = false;
-let stopRequested = false;
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Fungsi ini akan dievaluasi di dalam konteks renderer WhatsApp (BrowserView)
+// Ini tidak akan memiliki akses ke scope Node.js, jadi harus mandiri.
+const SCRIPT_TO_INJECT = `
+    (async function() {
+        if (typeof window.Store === 'undefined') {
+            return { error: 'Objek window.Store tidak ditemukan. WhatsApp Web mungkin belum sepenuhnya dimuat atau strukturnya telah berubah.' };
+        }
+        if (typeof window.Store.Chat === 'undefined') {
+            return { error: 'Objek window.Store.Chat tidak ditemukan. API internal WhatsApp mungkin telah diperbarui.' };
+        }
+        if (typeof window.Store.Chat.models === 'undefined') {
+             return { error: 'Objek window.Store.Chat.models tidak ditemukan. Struktur data chat telah berubah.' };
+        }
+
+        const chats = window.Store.Chat.models;
+        const unsavedContacts = [];
+
+        for (const chat of chats) {
+            const contact = chat.contact;
+            if (!chat.isGroup && contact && !contact.isMyContact && contact.id.server === 'c.us') {
+                unsavedContacts.push({
+                    id: contact.id._serialized,
+                    name: contact.name,
+                    formattedName: contact.formattedName,
+                    number: contact.id.user,
+                });
+            }
+        }
+        return { contacts: unsavedContacts };
+    })();
+`;
 
 /**
- * Fungsi ini akan disuntikkan dan dieksekusi di dalam konteks browser WhatsApp Web.
- * Tujuannya adalah untuk mengakses data model internal WhatsApp (Store) daripada mengandalkan DOM.
+ * Memulai proses pemindaian menggunakan Electron Debugger API.
+ * @param {BrowserWindow} mainWindow - Jendela utama untuk mengirim update.
+ * @param {WebContents} waWebContents - WebContents dari BrowserView WhatsApp.
  */
-async function extractContactsFromStore() {
-    // Pastikan Store dan model Chat sudah dimuat oleh WhatsApp Web
-    if (typeof window.Store === 'undefined' || typeof window.Store.Chat === 'undefined') {
-        return { error: 'Store atau Store.Chat tidak ditemukan. Mungkin WhatsApp Web sedang memuat.' };
+async function startScraping(mainWindow, waWebContents) {
+    if (isScanRunning) {
+        logger.warn('Pemindaian sudah berjalan.');
+        return;
     }
-
-    const chats = window.Store.Chat.models;
-    if (!chats) {
-        return { error: 'Model Chat tidak ditemukan di dalam Store.' };
-    }
-
-    const unsavedContacts = [];
-    for (const chat of chats) {
-        // Cara yang paling andal: periksa properti kontak secara langsung
-        const contact = chat.contact;
-        // Kita hanya tertarik pada obrolan individu, bukan grup, dan yang bukan kontak kita
-        if (!chat.isGroup && contact && !contact.isMyContact && contact.id.server === 'c.us') {
-            const phoneNumber = contact.id.user;
-            unsavedContacts.push({
-                id: contact.id._serialized,
-                name: contact.name, // Biasanya null atau sama dengan nomor
-                formattedName: contact.formattedName, // Biasanya nomor yang diformat
-                number: phoneNumber,
-            });
-        }
-    }
-    return { contacts: unsavedContacts };
-}
-
-
-async function startScraping(mainWindow, options) {
-    if (isScanRunning) return;
     isScanRunning = true;
-    stopRequested = false;
-    logger.info('Memulai pemindaian WhatsApp dengan metode injeksi Store...');
+    logger.info('Memulai pemindaian WhatsApp dengan Electron Debugger API...');
 
     try {
-        mainWindow.webContents.send('scan-update', { message: 'Menghubungkan ke browser...' });
-        browser = await chromium.connectOverCDP('http://localhost:9222');
-        const waContext = browser.contexts().find(c => c.pages().some(p => p.url().includes('whatsapp.com')));
-        if (!waContext) throw new Error('Konteks WhatsApp Web tidak ditemukan.');
+        // 1. Pasang debugger ke target (BrowserView)
+        waWebContents.debugger.attach('1.3');
+        mainWindow.webContents.send('scan-update', { message: 'Debugger terpasang. Menunggu WhatsApp Web siap...' });
 
-        page = waContext.pages()[0];
-        await page.bringToFront();
+        // 2. Tunggu hingga Store WhatsApp siap
+        // Kita lakukan ini dengan mencoba mengevaluasi skrip secara berkala
+        await waitForWhatsAppStore(waWebContents);
+        mainWindow.webContents.send('scan-update', { message: 'Store WhatsApp ditemukan. Mengekstrak kontak...' });
 
-        mainWindow.webContents.send('scan-update', { message: 'Menunggu WhatsApp Web siap...' });
-        // Tunggu hingga elemen UI utama muncul untuk memastikan halaman telah dimuat
-        await page.waitForSelector('div[aria-label="Daftar obrolan"]', { timeout: 60000 });
-        await delay(5000); // Beri waktu ekstra agar Store internal dimuat
+        // 3. Jalankan skrip utama untuk ekstraksi
+        const result = await waWebContents.debugger.sendCommand('Runtime.evaluate', {
+            expression: SCRIPT_TO_INJECT,
+            awaitPromise: true,
+            returnByValue: true
+        });
 
-        mainWindow.webContents.send('scan-update', { message: 'Mengekstrak data dari Store...' });
-        const result = await page.evaluate(extractContactsFromStore);
-
-        if (result.error) {
-            throw new Error(result.error);
+        if (result.exceptionDetails) {
+            throw new Error(`Error saat eksekusi skrip: ${result.exceptionDetails.text}`);
         }
 
-        const contacts = result.contacts;
+        const extractedData = result.result.value;
+        if (extractedData.error) {
+            throw new Error(extractedData.error);
+        }
+
+        const contacts = extractedData.contacts || [];
         mainWindow.webContents.send('scan-update', {
-            message: `Ekstraksi selesai. Ditemukan ${contacts.length} kemungkinan kontak yang belum disimpan.`,
+            message: `Ekstraksi selesai. Ditemukan ${contacts.length} kontak.`,
             processedChats: contacts.length
         });
 
+        // 4. Proses dan kirim hasil ke UI
         for (const contact of contacts) {
-            if (stopRequested) break;
             const normalized = normalizePhoneNumber(`+${contact.number}`);
             if (normalized) {
                 mainWindow.webContents.send('scan-result', {
                     original_text: contact.formattedName,
                     normalized_number: normalized,
-                    chat_title: contact.formattedName,
+                    chat_title: contact.formattedName || contact.number,
                 });
             }
         }
-
     } catch (error) {
         logger.error('Terjadi error saat scraping:', error);
-        mainWindow.webContents.send('scan-error', { message: `Terjadi error: ${error.message}` });
+        mainWindow.webContents.send('scan-error', { message: `Error: ${error.message}` });
     } finally {
-        logger.info('Pemindaian selesai atau dihentikan.');
+        if (waWebContents.debugger.isAttached()) {
+            waWebContents.debugger.detach();
+        }
         isScanRunning = false;
-        if (browser && browser.isConnected()) browser.disconnect();
+        logger.info('Pemindaian selesai, debugger dilepas.');
         mainWindow.webContents.send('scan-complete');
     }
 }
 
-ipcMain.on('start-scan', (event, options) => {
-    startScraping(BrowserWindow.fromWebContents(event.sender), options);
-});
+// Helper untuk menunggu Store siap
+async function waitForWhatsAppStore(webContents) {
+    let storeReady = false;
+    const startTime = Date.now();
+    const timeout = 60000; // 60 detik
 
-ipcMain.on('stop-scan', () => {
-    if (isScanRunning) {
-        logger.info('Permintaan berhenti diterima.');
-        stopRequested = true;
+    while (!storeReady && (Date.now() - startTime) < timeout) {
+        try {
+            const result = await webContents.debugger.sendCommand('Runtime.evaluate', {
+                expression: 'typeof window.Store !== "undefined" && typeof window.Store.Chat !== "undefined"',
+                returnByValue: true
+            });
+            if (result.result.value === true) {
+                storeReady = true;
+                return;
+            }
+        } catch (err) {
+            // Abaikan error jika debugger belum siap atau halaman sedang navigasi
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Tunggu 2 detik sebelum mencoba lagi
     }
-});
 
-// Helper untuk normalisasi, karena kita tidak bisa menggunakan libphonenumber-js di dalam browser
+    if (!storeReady) {
+        throw new Error('Timeout: Gagal mendeteksi Store WhatsApp setelah 60 detik.');
+    }
+}
+
 function normalizePhoneNumber(phoneNumber) {
     try {
-        const parsed = parsePhoneNumberFromString(phoneNumber); // Asumsikan format internasional
+        const parsed = parsePhoneNumberFromString(phoneNumber);
         return (parsed && parsed.isValid()) ? parsed.format('E.164') : null;
     } catch (error) {
+        logger.warn(`Gagal normalisasi nomor: ${phoneNumber}`);
         return null;
     }
 }
+
+module.exports = {
+    startScraping
+};
