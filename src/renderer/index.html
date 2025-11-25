@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Contact Scraper</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>WhatsApp Scraper</h1>
+            <div class="disclaimer">
+                <strong>Perhatian:</strong> Alat ini memproses data pribadi. Anda bertanggung jawab penuh atas penggunaannya. Gunakan dengan bijak dan hormati privasi.
+            </div>
+
+            <div class="login-instruction">
+                <h2>1. Hubungkan WhatsApp</h2>
+                <p>Pastikan Anda sudah login ke WhatsApp Web di jendela sebelah kanan. Jika belum, pindai QR code untuk terhubung.</p>
+            </div>
+
+            <div class="controls">
+                <h2>2. Atur & Mulai Pindai</h2>
+                <div class="form-group">
+                    <label for="delay_per_chat_ms">Delay per Chat (ms)</label>
+                    <input type="number" id="delay_per_chat_ms" value="1500">
+                </div>
+                <div class="form-group">
+                    <label for="delay_between_messages_ms">Delay Antar Pesan (ms)</label>
+                    <input type="number" id="delay_between_messages_ms" value="500">
+                </div>
+                <div class="form-group">
+                    <label for="max_chats_to_scan">Max Chats (0 = semua)</label>
+                    <input type="number" id="max_chats_to_scan" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="scan_direction">Arah Pindai</label>
+                    <select id="scan_direction">
+                        <option value="newest-oldest">Terbaru → Terlama</option>
+                        <option value="oldest-newest" disabled>Terlama → Terbaru (TBD)</option>
+                    </select>
+                </div>
+                <div class="buttons">
+                    <button id="start-scan-btn">Start Full Scan</button>
+                    <button id="stop-scan-btn" disabled>Stop Scan</button>
+                </div>
+            </div>
+
+            <div class="progress-section">
+                <h2>3. Progress</h2>
+                <div id="status-message">Idle</div>
+                <progress id="scan-progress" value="0" max="100"></progress>
+                <div id="progress-counter">Ditemukan: 0 | Diproses: 0 / 0</div>
+            </div>
+
+            <div class="export-section">
+                <h2>4. Ekspor Hasil</h2>
+                <div class="form-group">
+                    <label>Sertakan Kolom:</label>
+                    <input type="checkbox" id="include_chat_name" checked> <label for="include_chat_name">Nama Chat</label>
+                    <input type="checkbox" id="include_last_message" checked> <label for="include_last_message">Pesan Terakhir</label>
+                    <input type="checkbox" id="include_timestamp"> <label for="include_timestamp">Timestamp</label>
+                </div>
+                <div class="buttons">
+                    <button id="export-csv-btn">Ekspor CSV</button>
+                    <button id="export-vcf-btn">Ekspor VCF</button>
+                    <button id="export-txt-btn">Ekspor TXT</button>
+                </div>
+                 <div id="export-status"></div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <h2>Hasil Ditemukan</h2>
+            <div class="table-container">
+                <table id="results-table">
+                    <thead>
+                        <tr>
+                            <th>Nomor Asli</th>
+                            <th>Nomor Normalisasi</th>
+                            <th>Nama Chat</th>
+                            <th>Tipe</th>
+                            <th>Pesan Terakhir</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Hasil akan ditambahkan di sini oleh JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="./renderer.js"></script>
+</body>
+</html>
