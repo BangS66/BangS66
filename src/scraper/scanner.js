@@ -9,11 +9,11 @@ let page = null;
 let isScanRunning = false;
 let stopRequested = false;
 
-// Selektor DOM WhatsApp Web
+// --- SELEKTOR DOM BARU YANG LEBIH KUAT ---
 const SELECTORS = {
-    chatListContainer: '#pane-side', // Kontainer utama yang bisa digulir
+    chatListContainer: 'div[aria-label="Daftar obrolan"]',
     chatListItem: 'div[role="listitem"]',
-    chatTitle: 'span[dir="auto"][title]',
+    chatTitle: 'span[title]', // Selektor yang lebih sederhana dan kuat untuk judul
 };
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -21,12 +21,9 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 function normalizePhoneNumber(phoneNumber, defaultCountry = 'ID') {
     try {
         const parsed = parsePhoneNumberFromString(phoneNumber, defaultCountry);
-        if (parsed && parsed.isValid()) {
-            return parsed.format('E.164');
-        }
-        return null;
+        return (parsed && parsed.isValid()) ? parsed.format('E.164') : null;
     } catch (error) {
-        logger.warn(`Could not parse phone number "${phoneNumber}": ${error.message}`);
+        logger.warn(`Gagal mem-parsing nomor: "${phoneNumber}"`);
         return null;
     }
 }
@@ -36,117 +33,91 @@ function isUnsavedContact(chatTitle) {
 }
 
 async function startScraping(mainWindow, options) {
-    if (isScanRunning) {
-        return mainWindow.webContents.send('scan-error', { message: 'Scan sudah berjalan.' });
-    }
+    if (isScanRunning) return;
     isScanRunning = true;
     stopRequested = false;
-    logger.info('Starting WhatsApp scan with options:', options);
-
+    logger.info('Memulai pemindaian WhatsApp dengan logika baru...');
     const processedChatTitles = new Set();
 
     try {
         mainWindow.webContents.send('scan-update', { message: 'Menghubungkan ke browser...' });
         browser = await chromium.connectOverCDP('http://localhost:9222');
         const waContext = browser.contexts().find(c => c.pages().some(p => p.url().includes('whatsapp.com')));
+        if (!waContext) throw new Error('Konteks WhatsApp Web tidak ditemukan.');
 
-        if (!waContext) {
-            throw new Error('Konteks WhatsApp Web tidak ditemukan. Pastikan sudah login.');
-        }
         page = waContext.pages()[0];
         await page.bringToFront();
 
-        mainWindow.webContents.send('scan-update', { message: 'Mencari daftar chat...' });
-        await page.waitForSelector(SELECTORS.chatListContainer, { timeout: 30000 });
+        mainWindow.webContents.send('scan-update', { message: 'Mencari daftar obrolan...' });
+        const chatListContainer = await page.waitForSelector(SELECTORS.chatListContainer, { timeout: 30000 });
 
-        let lastProcessedCount = 0;
         let stationaryScrolls = 0;
 
         while (!stopRequested) {
-            if (options.max_chats_to_scan > 0 && processedChatTitles.size >= options.max_chats_to_scan) {
-                logger.info(`Batas pemindaian tercapai: ${options.max_chats_to_scan}`);
-                mainWindow.webContents.send('scan-update', { message: `Batas ${options.max_chats_to_scan} chat tercapai.` });
-                break;
-            }
+            const chatItems = await chatListContainer.locator(SELECTORS.chatListItem).all();
+            mainWindow.webContents.send('scan-update', { message: `Memeriksa ${chatItems.length} obrolan yang terlihat...` });
 
-            const chatItems = await page.$$(SELECTORS.chatListItem);
+            let newChatsFoundInCycle = false;
 
             for (const chatHandle of chatItems) {
                 if (stopRequested) break;
+                const titleHandle = chatHandle.locator(SELECTORS.chatTitle).first();
+                const chatTitle = await titleHandle.getAttribute('title');
 
-                let chatTitle = 'N/A';
-                try {
-                    const titleHandle = await chatHandle.$(SELECTORS.chatTitle);
-                    if (titleHandle) {
-                        chatTitle = await titleHandle.getAttribute('title');
+                if (chatTitle && !processedChatTitles.has(chatTitle)) {
+                    newChatsFoundInCycle = true;
+                    processedChatTitles.add(chatTitle);
+                    mainWindow.webContents.send('scan-update', {
+                        message: `Ditemukan: ${chatTitle}`,
+                        processedChats: processedChatTitles.size,
+                    });
 
-                        if (!processedChatTitles.has(chatTitle)) {
-                            processedChatTitles.add(chatTitle);
-                             mainWindow.webContents.send('scan-update', {
-                                message: `Ditemukan: ${chatTitle}`,
-                                processedChats: processedChatTitles.size,
+                    if (isUnsavedContact(chatTitle)) {
+                        const normalized = normalizePhoneNumber(chatTitle);
+                        if (normalized) {
+                            mainWindow.webContents.send('scan-result', {
+                                original_text: chatTitle,
+                                normalized_number: normalized,
+                                chat_title: chatTitle,
                             });
-                            await delay(options.delay_per_chat_ms); // Delay kecil antar pemrosesan
-
-                            if (isUnsavedContact(chatTitle)) {
-                                const normalized = normalizePhoneNumber(chatTitle);
-                                if (normalized) {
-                                    const contactData = {
-                                        original_text: chatTitle,
-                                        normalized_number: normalized,
-                                        chat_title: chatTitle,
-                                        chat_type: 'Direct',
-                                        is_group: false,
-                                    };
-                                    mainWindow.webContents.send('scan-result', contactData);
-                                }
-                            }
                         }
                     }
-                } catch (err) {
-                    logger.error(`Gagal memproses chat (${chatTitle}): ${err.message}`);
+                     await delay(options.delay_per_chat_ms);
                 }
             }
-             if (stopRequested) break;
 
-            mainWindow.webContents.send('scan-update', { message: 'Menggulir ke bawah...' });
-            await page.evaluate((selector) => {
-                const element = document.querySelector(selector);
-                if (element) element.scrollTop = element.scrollHeight;
-            }, SELECTORS.chatListContainer);
+            if (stopRequested) break;
 
-            await delay(2000); // Tunggu konten baru dimuat
-
-            if (processedChatTitles.size === lastProcessedCount) {
+            if (!newChatsFoundInCycle) {
                 stationaryScrolls++;
+                mainWindow.webContents.send('scan-update', { message: `Tidak ada obrolan baru ditemukan (${stationaryScrolls}/3)` });
                 if (stationaryScrolls >= 3) {
-                    logger.info('Akhir dari daftar chat tercapai.');
-                    mainWindow.webContents.send('scan-update', { message: 'Selesai menggulir, semua chat telah dipindai.' });
+                     mainWindow.webContents.send('scan-update', { message: 'Selesai menggulir, semua obrolan telah dipindai.' });
                     break;
                 }
             } else {
                 stationaryScrolls = 0;
             }
-            lastProcessedCount = processedChatTitles.size;
+
+            mainWindow.webContents.send('scan-update', { message: 'Menggulir ke bawah...' });
+            await page.mouse.move(50, 300); // Pindahkan mouse ke atas daftar obrolan
+            await page.mouse.wheel(0, 800); // Gulir ke bawah dengan jumlah piksel yang signifikan
+            await delay(2000);
         }
+
     } catch (error) {
         logger.error('Terjadi error saat scraping:', error);
         mainWindow.webContents.send('scan-error', { message: `Terjadi error: ${error.message}` });
     } finally {
         logger.info('Pemindaian selesai atau dihentikan.');
         isScanRunning = false;
-        stopRequested = false;
-        if (browser && browser.isConnected()) {
-            browser.close();
-            browser = null;
-        }
+        if (browser && browser.isConnected()) browser.close();
         mainWindow.webContents.send('scan-complete');
     }
 }
 
 ipcMain.on('start-scan', (event, options) => {
-    const mainWindow = BrowserWindow.fromWebContents(event.sender);
-    startScraping(mainWindow, options);
+    startScraping(BrowserWindow.fromWebContents(event.sender), options);
 });
 
 ipcMain.on('stop-scan', () => {

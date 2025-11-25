@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView, ipcMain } = require('electron');
+const { app, BrowserWindow, BrowserView } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { initializeLogger } = require('./utils/logger');
@@ -24,12 +24,11 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
-  // mainWindow.webContents.openDevTools(); // Uncomment untuk debug UI
 
   // Buat BrowserView untuk WhatsApp Web
   whatsAppView = new BrowserView({
     webPreferences: {
-      partition: `persist:whatsapp`, // Ini kunci untuk session persistence
+      partition: `persist:whatsapp`,
     }
   });
 
@@ -39,9 +38,6 @@ function createWindow() {
   whatsAppView.webContents.loadURL('https://web.whatsapp.com', {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
   });
-
-  // Uncomment untuk debug WhatsApp Web view
-  // whatsAppView.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -66,7 +62,6 @@ app.on('activate', () => {
   }
 });
 
-// Mengintegrasikan logika scraper. Cukup dengan me-require file tersebut,
-// karena event listener IPC sudah di-setup di dalamnya.
+// Mengintegrasikan logika scraper dan exporter
 require('./scraper/scanner');
-require('./utils/exporter'); // Menambahkan handler untuk ekspor
+require('./utils/exporter');
