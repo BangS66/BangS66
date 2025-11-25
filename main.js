@@ -80,13 +80,32 @@ async function findUnsavedContacts(view) {
     }
     const script = `
       new Promise((resolve, reject) => {
-        if (window.Store && window.Store.Contact) {
+        try {
+          if (typeof window.Store === 'undefined') {
+            return reject('WhatsApp internal Store not found. The application may have been updated.');
+          }
+          if (typeof window.Store.Contact === 'undefined') {
+            return reject('Store.Contact module not found.');
+          }
+          if (!Array.isArray(window.Store.Contact.models)) {
+            return reject('Store.Contact.models is not an array.');
+          }
+
           const unsavedContacts = window.Store.Contact.models
-            .filter(contact => !contact.isMyContact && contact.id.server === 'c.us')
+            .filter(contact => {
+              // Defensive checks for the contact object structure
+              return contact &&
+                     contact.id &&
+                     typeof contact.id.server !== 'undefined' &&
+                     typeof contact.id.user !== 'undefined' &&
+                     contact.isMyContact === false &&
+                     contact.id.server === 'c.us';
+            })
             .map(contact => '+' + contact.id.user);
+
           resolve(unsavedContacts);
-        } else {
-          reject('WhatsApp Store not found. Is the page fully loaded?');
+        } catch (e) {
+          reject('An unexpected error occurred while processing contacts: ' + (e.message || e));
         }
       });
     `;
