@@ -101,6 +101,19 @@ function triggerDownload() {
   if (format === 'json') {
     content = JSON.stringify(contacts, null, 2);
     mimeType = 'application/json';
+  } else if (format === 'vcf') {
+    content = '';
+    contacts.forEach(c => {
+      content += `BEGIN:VCARD\n`;
+      content += `VERSION:3.0\n`;
+      // Gunakan judul chat sebagai nama, jika bukan nomor. Jika itu nomor, biarkan kosong.
+      const name = isNaN(c.chatTitle) ? c.chatTitle : c.phone;
+      content += `FN:${name}\n`;
+      content += `TEL;TYPE=CELL:${c.phone}\n`;
+      content += `NOTE:Ditemukan di chat: ${c.chatTitle} | Teks: ${c.displayTextFound}\n`;
+      content += `END:VCARD\n`;
+    });
+    mimeType = 'text/vcard';
   } else { // CSV
     content = 'phone,displayTextFound,chatTitle\n';
     contacts.forEach(c => {

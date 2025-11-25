@@ -49,7 +49,7 @@ Proses ini sengaja dibuat dapat dikonfigurasi dengan *delay* untuk meniru perila
 4.  **Konfigurasi (Opsional):**
     *   **Delay per Chat:** Waktu tunggu (dalam milidetik) setelah membuka setiap chat. Nilai yang lebih tinggi lebih aman.
     *   **Delay per Scroll:** Waktu tunggu (dalam milidetik) setelah setiap aksi gulir di daftar chat.
-    *   **Export Format:** Pilih format file output (CSV atau JSON).
+    *   **Export Format:** Pilih format file output (CSV, JSON, atau VCF).
 5.  **Mulai Pemindaian:** Klik tombol **Start Full Scan**. Jangan berinteraksi dengan tab WhatsApp Web saat pemindaian berjalan.
 6.  **Pantau Progres:** Progres akan ditampilkan di area log di dalam popup. Anda akan melihat jumlah chat yang diproses dan jumlah kontak unik yang ditemukan.
 7.  **Hentikan Pemindaian (Opsional):** Jika Anda perlu menghentikan proses, klik tombol **Stop Scan**.
