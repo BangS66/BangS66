@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Unsaved Contacts Exporter</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div id="main-container">
+      <div id="controls-container">
+          <h1>WhatsApp Exporter</h1>
+          <div id="controls">
+              <p>Once WhatsApp is loaded and you are logged in, you can start scanning.</p>
+              <button id="scan-button">Scan for Unsaved Contacts</button>
+              <div id="status">Ready</div>
+              <div id="export-buttons" style="display: none;">
+                  <button id="export-json">Export as JSON</button>
+                  <button id="export-csv">Export as CSV</button>
+                  <button id="export-vcf">Export as VCF</button>
+              </div>
+          </div>
+      </div>
+       <!-- The BrowserView will be placed by main.js. This div is a placeholder. -->
+      <div id="whatsapp-view-container">
+      </div>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
