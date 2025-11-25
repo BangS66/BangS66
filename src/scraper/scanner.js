@@ -9,35 +9,47 @@ let page = null;
 let isScanRunning = false;
 let stopRequested = false;
 
-// --- SELEKTOR DOM BARU YANG LEBIH KUAT ---
-const SELECTORS = {
-    chatListContainer: 'div[aria-label="Daftar obrolan"]',
-    chatListItem: 'div[role="listitem"]',
-    chatTitle: 'span[title]', // Selektor yang lebih sederhana dan kuat untuk judul
-};
-
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-function normalizePhoneNumber(phoneNumber, defaultCountry = 'ID') {
-    try {
-        const parsed = parsePhoneNumberFromString(phoneNumber, defaultCountry);
-        return (parsed && parsed.isValid()) ? parsed.format('E.164') : null;
-    } catch (error) {
-        logger.warn(`Gagal mem-parsing nomor: "${phoneNumber}"`);
-        return null;
+/**
+ * Fungsi ini akan disuntikkan dan dieksekusi di dalam konteks browser WhatsApp Web.
+ * Tujuannya adalah untuk mengakses data model internal WhatsApp (Store) daripada mengandalkan DOM.
+ */
+async function extractContactsFromStore() {
+    // Pastikan Store dan model Chat sudah dimuat oleh WhatsApp Web
+    if (typeof window.Store === 'undefined' || typeof window.Store.Chat === 'undefined') {
+        return { error: 'Store atau Store.Chat tidak ditemukan. Mungkin WhatsApp Web sedang memuat.' };
     }
+
+    const chats = window.Store.Chat.models;
+    if (!chats) {
+        return { error: 'Model Chat tidak ditemukan di dalam Store.' };
+    }
+
+    const unsavedContacts = [];
+    for (const chat of chats) {
+        // Cara yang paling andal: periksa properti kontak secara langsung
+        const contact = chat.contact;
+        // Kita hanya tertarik pada obrolan individu, bukan grup, dan yang bukan kontak kita
+        if (!chat.isGroup && contact && !contact.isMyContact && contact.id.server === 'c.us') {
+            const phoneNumber = contact.id.user;
+            unsavedContacts.push({
+                id: contact.id._serialized,
+                name: contact.name, // Biasanya null atau sama dengan nomor
+                formattedName: contact.formattedName, // Biasanya nomor yang diformat
+                number: phoneNumber,
+            });
+        }
+    }
+    return { contacts: unsavedContacts };
 }
 
-function isUnsavedContact(chatTitle) {
-    return /^[0-9\s+\-().]+$/.test(chatTitle.trim());
-}
 
 async function startScraping(mainWindow, options) {
     if (isScanRunning) return;
     isScanRunning = true;
     stopRequested = false;
-    logger.info('Memulai pemindaian WhatsApp dengan logika baru...');
-    const processedChatTitles = new Set();
+    logger.info('Memulai pemindaian WhatsApp dengan metode injeksi Store...');
 
     try {
         mainWindow.webContents.send('scan-update', { message: 'Menghubungkan ke browser...' });
@@ -48,61 +60,34 @@ async function startScraping(mainWindow, options) {
         page = waContext.pages()[0];
         await page.bringToFront();
 
-        mainWindow.webContents.send('scan-update', { message: 'Mencari daftar obrolan...' });
-        const chatListContainer = await page.waitForSelector(SELECTORS.chatListContainer, { timeout: 30000 });
+        mainWindow.webContents.send('scan-update', { message: 'Menunggu WhatsApp Web siap...' });
+        // Tunggu hingga elemen UI utama muncul untuk memastikan halaman telah dimuat
+        await page.waitForSelector('div[aria-label="Daftar obrolan"]', { timeout: 60000 });
+        await delay(5000); // Beri waktu ekstra agar Store internal dimuat
 
-        let stationaryScrolls = 0;
+        mainWindow.webContents.send('scan-update', { message: 'Mengekstrak data dari Store...' });
+        const result = await page.evaluate(extractContactsFromStore);
 
-        while (!stopRequested) {
-            const chatItems = await chatListContainer.locator(SELECTORS.chatListItem).all();
-            mainWindow.webContents.send('scan-update', { message: `Memeriksa ${chatItems.length} obrolan yang terlihat...` });
+        if (result.error) {
+            throw new Error(result.error);
+        }
 
-            let newChatsFoundInCycle = false;
+        const contacts = result.contacts;
+        mainWindow.webContents.send('scan-update', {
+            message: `Ekstraksi selesai. Ditemukan ${contacts.length} kemungkinan kontak yang belum disimpan.`,
+            processedChats: contacts.length
+        });
 
-            for (const chatHandle of chatItems) {
-                if (stopRequested) break;
-                const titleHandle = chatHandle.locator(SELECTORS.chatTitle).first();
-                const chatTitle = await titleHandle.getAttribute('title');
-
-                if (chatTitle && !processedChatTitles.has(chatTitle)) {
-                    newChatsFoundInCycle = true;
-                    processedChatTitles.add(chatTitle);
-                    mainWindow.webContents.send('scan-update', {
-                        message: `Ditemukan: ${chatTitle}`,
-                        processedChats: processedChatTitles.size,
-                    });
-
-                    if (isUnsavedContact(chatTitle)) {
-                        const normalized = normalizePhoneNumber(chatTitle);
-                        if (normalized) {
-                            mainWindow.webContents.send('scan-result', {
-                                original_text: chatTitle,
-                                normalized_number: normalized,
-                                chat_title: chatTitle,
-                            });
-                        }
-                    }
-                     await delay(options.delay_per_chat_ms);
-                }
-            }
-
+        for (const contact of contacts) {
             if (stopRequested) break;
-
-            if (!newChatsFoundInCycle) {
-                stationaryScrolls++;
-                mainWindow.webContents.send('scan-update', { message: `Tidak ada obrolan baru ditemukan (${stationaryScrolls}/3)` });
-                if (stationaryScrolls >= 3) {
-                     mainWindow.webContents.send('scan-update', { message: 'Selesai menggulir, semua obrolan telah dipindai.' });
-                    break;
-                }
-            } else {
-                stationaryScrolls = 0;
+            const normalized = normalizePhoneNumber(`+${contact.number}`);
+            if (normalized) {
+                mainWindow.webContents.send('scan-result', {
+                    original_text: contact.formattedName,
+                    normalized_number: normalized,
+                    chat_title: contact.formattedName,
+                });
             }
-
-            mainWindow.webContents.send('scan-update', { message: 'Menggulir ke bawah...' });
-            await page.mouse.move(50, 300); // Pindahkan mouse ke atas daftar obrolan
-            await page.mouse.wheel(0, 800); // Gulir ke bawah dengan jumlah piksel yang signifikan
-            await delay(2000);
         }
 
     } catch (error) {
@@ -111,7 +96,7 @@ async function startScraping(mainWindow, options) {
     } finally {
         logger.info('Pemindaian selesai atau dihentikan.');
         isScanRunning = false;
-        if (browser && browser.isConnected()) browser.close();
+        if (browser && browser.isConnected()) browser.disconnect();
         mainWindow.webContents.send('scan-complete');
     }
 }
@@ -126,3 +111,13 @@ ipcMain.on('stop-scan', () => {
         stopRequested = true;
     }
 });
+
+// Helper untuk normalisasi, karena kita tidak bisa menggunakan libphonenumber-js di dalam browser
+function normalizePhoneNumber(phoneNumber) {
+    try {
+        const parsed = parsePhoneNumberFromString(phoneNumber); // Asumsikan format internasional
+        return (parsed && parsed.isValid()) ? parsed.format('E.164') : null;
+    } catch (error) {
+        return null;
+    }
+}

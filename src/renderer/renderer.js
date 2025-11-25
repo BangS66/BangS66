@@ -32,11 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressCounter.textContent = 'Ditemukan: 0 | Diproses: 0';
         setScanningState(true);
 
-        const options = {
-            delay_per_chat_ms: parseInt(document.getElementById('delay_per_chat_ms').value, 10),
-            max_chats_to_scan: parseInt(document.getElementById('max_chats_to_scan').value, 10),
-        };
-        window.electronAPI.startScan(options);
+        window.electronAPI.startScan({}); // Tidak ada opsi yang diperlukan lagi
     });
 
     stopScanBtn.addEventListener('click', () => {
