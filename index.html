@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp Advanced Exporter</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="main-container">
+        <h1>WhatsApp Advanced Exporter</h1>
+
+        <div id="login-status-container">
+            <p><strong>Status:</strong> <span id="wa-status">Initializing...</span></p>
+            <div id="login-instructions">
+                <p>Please log in to WhatsApp. A QR code window will appear if you are not logged in.</p>
+            </div>
+            <button id="logout-button" class="secondary-button">Logout & Reset Session</button>
+        </div>
+
+        <div class="feature-section">
+            <h2>Unsaved Contacts</h2>
+            <div class="form-group">
+                <label for="start-date">Start Date:</label>
+                <input type="date" id="start-date">
+            </div>
+            <div class="form-group">
+                <label for="end-date">End Date:</label>
+                <input type="date" id="end-date">
+            </div>
+            <button id="scan-button">Scan Unsaved Contacts</button>
+        </div>
+
+        <div class="feature-section">
+            <h2>Group Members</h2>
+            <button id="fetch-groups-button">Fetch My Groups</button>
+            <div class="form-group">
+                <label for="group-select">Select a Group:</label>
+                <select id="group-select" disabled>
+                    <option>Fetch groups first</option>
+                </select>
+            </div>
+            <button id="scrape-group-button" disabled>Scrape Group Members</button>
+        </div>
+
+        <div class="feature-section">
+            <h2>Export Settings</h2>
+            <div class="form-group">
+                <label for="contact-prefix">Contact Name Prefix:</label>
+                <input type="text" id="contact-prefix" placeholder="e.g., Customer">
+            </div>
+            <p><strong>Result:</strong> <span id="status">Ready</span></p>
+            <div id="export-buttons" style="display: none;">
+                <button id="export-json">Export as JSON</button>
+                <button id="export-csv">Export as CSV</button>
+                <button id="export-vcf">Export as VCF</button>
+            </div>
+        </div>
+
+    </div>
+    <script src="./renderer.js"></script>
+</body>
+</html>

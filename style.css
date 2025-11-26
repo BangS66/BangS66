@@ -1,0 +1,124 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f2f5;
+    color: #1c1e21;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+#main-container {
+    width: 100%;
+    max-width: 600px;
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #075e54;
+    margin-top: 0;
+    margin-bottom: 30px;
+}
+
+#login-status-container {
+    text-align: center;
+    padding: 15px;
+    background-color: #e6f2ff;
+    border: 1px solid #b3d7ff;
+    border-radius: 5px;
+    margin-bottom: 30px;
+}
+
+#wa-status {
+    font-weight: bold;
+}
+
+.feature-section {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #ddd;
+}
+
+.feature-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+
+h2 {
+    color: #128c7e;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    margin-bottom: 5px;
+    color: #333;
+    font-weight: 500;
+}
+
+input[type="date"],
+input[type="text"],
+select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+
+button {
+    background-color: #075e54;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+button:hover {
+    background-color: #128c7e;
+}
+
+.secondary-button {
+    background-color: #6c757d;
+    margin-top: 15px;
+}
+
+.secondary-button:hover {
+    background-color: #5a6268;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+#export-buttons {
+    display: none; /* Initially hidden */
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#status {
+    font-weight: 500;
+    color: #075e54;
+}
