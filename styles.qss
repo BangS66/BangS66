@@ -1,0 +1,124 @@
+/* styles.qss - Modern Dark Theme for PySide6 */
+
+QWidget {
+    background-color: #2E3440; /* Nord Polar Night */
+    color: #ECEFF4; /* Nord Snow Storm */
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+}
+
+QMainWindow {
+    background-color: #2E3440;
+}
+
+QGroupBox {
+    border: 1px solid #4C566A; /* Nord Polar Night - Lighter */
+    border-radius: 5px;
+    margin-top: 1ex; /* leave space for title */
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top center;
+    padding: 0 5px;
+}
+
+QLabel {
+    color: #D8DEE9; /* Nord Snow Storm - Darker */
+}
+
+QLineEdit, QComboBox, QDateEdit {
+    background-color: #3B4252; /* Nord Polar Night - Lightest */
+    border: 1px solid #4C566A;
+    border-radius: 4px;
+    padding: 8px;
+    color: #ECEFF4;
+}
+
+QLineEdit:focus, QComboBox:focus, QDateEdit:focus {
+    border-color: #88C0D0; /* Nord Frost */
+}
+
+QPushButton {
+    background-color: #5E81AC; /* Nord Frost */
+    color: #ECEFF4;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    outline: none;
+}
+
+QPushButton:hover {
+    background-color: #81A1C1; /* Nord Frost - Lighter */
+}
+
+QPushButton:pressed {
+    background-color: #88C0D0; /* Nord Frost - Lightest */
+}
+
+QTableWidget {
+    background-color: #3B4252;
+    border: 1px solid #4C566A;
+    gridline-color: #4C566A;
+    border-radius: 4px;
+}
+
+QHeaderView::section {
+    background-color: #434C5E;
+    color: #ECEFF4;
+    padding: 5px;
+    border: 1px solid #4C566A;
+    font-weight: bold;
+}
+
+QTableWidget::item {
+    padding: 5px;
+}
+
+QTableWidget::item:selected {
+    background-color: #5E81AC;
+    color: #ECEFF4;
+}
+
+QRadioButton {
+    spacing: 5px;
+}
+
+QRadioButton::indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    border: 2px solid #5E81AC;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #88C0D0;
+}
+
+QDateEdit::down-arrow, QComboBox::down-arrow {
+    /* The image was missing, so we remove the reference to let Qt use the default. */
+}
+
+QDateEdit::drop-down, QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 20px;
+    border-left: 1px solid #4C566A;
+}
+
+QScrollBar:vertical {
+    border: none;
+    background: #3B4252;
+    width: 12px;
+    margin: 0px 0px 0px 0px;
+}
+QScrollBar::handle:vertical {
+    background: #4C566A;
+    min-height: 20px;
+    border-radius: 6px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
